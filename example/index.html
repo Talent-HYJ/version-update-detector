@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Version Update Detector 示例</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+      }
+      .demo-section {
+        margin: 20px 0;
+        padding: 20px;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+      }
+      button {
+        background: #409eff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+      }
+      button:hover {
+        background: #66b1ff;
+      }
+      .status {
+        margin: 10px 0;
+        padding: 10px;
+        background: #f0f9ff;
+        border: 1px solid #b3d8ff;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Version Update Detector 示例</h1>
+
+      <div class="demo-section">
+        <h3>基础用法</h3>
+        <p>这个示例展示了如何使用版本更新检测器。</p>
+        <button onclick="initDetector()">初始化检测器</button>
+        <button onclick="checkUpdate()">手动检查更新</button>
+        <button onclick="simulateUpdate()">模拟版本更新</button>
+        <div id="status" class="status">状态：未初始化</div>
+      </div>
+
+      <div class="demo-section">
+        <h3>功能说明</h3>
+        <ul>
+          <li>自动检测应用版本更新</li>
+          <li>监听资源加载失败</li>
+          <li>显示更新通知弹窗</li>
+          <li>支持自定义配置</li>
+        </ul>
+      </div>
+    </div>
+
+    <script type="module">
+      import { createVersionUpdateDetector, VersionDetector, UpdateNotification } from '../dist/index.esm.js';
+
+      let detector = null;
+      let notification = null;
+
+      window.initDetector = function () {
+        try {
+          // 创建检测器和通知组件
+          const result = createVersionUpdateDetector(
+            {
+              // 检测器选项
+              checkInterval: 10 * 1000, // 10秒检查一次（演示用）
+              skipInDevelopment: false, // 演示时不跳过开发环境
+              versionCheckUrl: '/package.json',
+              enableResourceErrorDetection: true
+            },
+            {
+              // 通知选项
+              title: '应用更新提醒',
+              description: '请刷新页面以获得最新内容。',
+              forceUpdate: false,
+              width: '480px',
+              buttonText: {
+                later: '稍后提醒',
+                refresh: '立即刷新',
+                refreshing: '正在刷新...'
+              },
+              laterInterval: 5 * 60 * 1000 // 5分钟
+            },
+            {
+              // 事件回调
+              onRefresh: () => {
+                console.log('用户点击了刷新');
+                updateStatus('用户点击了刷新');
+              },
+              onLater: () => {
+                console.log('用户点击了稍后提醒');
+                updateStatus('用户点击了稍后提醒');
+              },
+              onClose: () => {
+                console.log('弹窗关闭');
+                updateStatus('弹窗关闭');
+              }
+            }
+          );
+
+          detector = result.detector;
+          notification = result.notification;
+
+          updateStatus('检测器已初始化');
+          console.log('版本检测器初始化成功');
+        } catch (error) {
+          console.error('初始化失败:', error);
+          updateStatus('初始化失败: ' + error.message);
+        }
+      };
+
+      window.checkUpdate = async function () {
+        if (!detector) {
+          updateStatus('请先初始化检测器');
+          return;
+        }
+
+        try {
+          updateStatus('正在检查更新...');
+          const hasUpdate = await detector.checkForUpdate();
+          if (hasUpdate) {
+            updateStatus('检测到新版本');
+          } else {
+            updateStatus('当前已是最新版本');
+          }
+        } catch (error) {
+          console.error('检查更新失败:', error);
+          updateStatus('检查更新失败: ' + error.message);
+        }
+      };
+
+      window.simulateUpdate = function () {
+        if (!notification) {
+          updateStatus('请先初始化检测器');
+          return;
+        }
+
+        // 模拟显示更新通知
+        notification.show('version-change');
+        updateStatus('已显示更新通知');
+      };
+
+      function updateStatus(message) {
+        const statusEl = document.getElementById('status');
+        if (statusEl) {
+          statusEl.textContent = '状态：' + message;
+        }
+      }
+
+      // 页面卸载时清理
+      window.addEventListener('beforeunload', () => {
+        if (detector) {
+          detector.destroy();
+        }
+      });
+    </script>
+  </body>
+</html>

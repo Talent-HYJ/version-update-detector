@@ -1,0 +1,49 @@
+{
+  "name": "version-update-detector",
+  "version": "1.0.0",
+  "description": "A lightweight JavaScript library for detecting application version updates and showing update notifications",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "test": "echo 'Tests skipped for now'",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "version",
+    "update",
+    "detector",
+    "notification",
+    "javascript",
+    "spa",
+    "pwa"
+  ],
+  "author": "hyj",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-terser": "^0.4.0",
+    "@types/jest": "^29.5.14",
+    "jest": "^29.0.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "rollup": "^3.0.0",
+    "rollup-plugin-typescript2": "^0.34.0",
+    "ts-jest": "^29.4.5",
+    "typescript": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Talent-HYJ/version-update-detector.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Talent-HYJ/version-update-detector/issues"
+  },
+  "homepage": "https://github.com/Talent-HYJ/version-update-detector#readme"
+}
