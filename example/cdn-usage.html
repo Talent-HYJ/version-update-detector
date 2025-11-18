@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Version Update Detector - CDN 使用示例</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .card {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    }
+    h1 {
+      color: #333;
+      margin-top: 0;
+      font-size: 32px;
+    }
+    .badge {
+      display: inline-block;
+      background: #409eff;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin-left: 10px;
+    }
+    .info-box {
+      background: #f0f9ff;
+      border-left: 4px solid #409eff;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .info-box h3 {
+      margin-top: 0;
+      color: #409eff;
+    }
+    .code-box {
+      background: #282c34;
+      color: #abb2bf;
+      padding: 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 20px 0;
+    }
+    .code-box code {
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .btn {
+      background: #409eff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 5px;
+      transition: all 0.3s;
+    }
+    .btn:hover {
+      background: #66b1ff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
+    }
+    .status {
+      padding: 15px;
+      margin: 20px 0;
+      background: #f9f9f9;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      border: 1px solid #e0e0e0;
+    }
+    ul {
+      line-height: 2;
+    }
+    .highlight {
+      background: #fff3cd;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>
+      📦 Version Update Detector
+      <span class="badge">CDN 示例</span>
+    </h1>
+    
+    <div class="info-box">
+      <h3>✨ 本页面演示了通过 CDN 使用该库</h3>
+      <p>无需 npm 安装，直接通过 <code>&lt;script&gt;</code> 标签引入即可使用！</p>
+    </div>
+
+    <div class="info-box" style="background: #fff3e0; border-left-color: #ff9800;">
+      <h3>🎯 测试步骤</h3>
+      <ol>
+        <li>打开浏览器开发者工具（F12）→ Console 标签</li>
+        <li>查看初始化日志</li>
+        <li>切换到其他标签页，再切回来（触发可见性检测）</li>
+        <li>点击下方"模拟更新通知"按钮查看弹窗效果</li>
+      </ol>
+    </div>
+
+    <div style="margin: 30px 0;">
+      <button class="btn" onclick="manualCheck()">🔍 手动检查更新</button>
+      <button class="btn" onclick="simulateUpdate()">🎨 模拟更新通知</button>
+      <button class="btn" style="background: #e74c3c;" onclick="clearStorage()">🗑️ 清除缓存</button>
+    </div>
+
+    <div id="status" class="status">
+      ⏳ 正在初始化...
+    </div>
+
+    <div class="code-box">
+      <code>&lt;!-- 引入库 --&gt;<br>
+&lt;script src="../dist/index.umd.js"&gt;&lt;/script&gt;<br>
+<br>
+&lt;script&gt;<br>
+&nbsp;&nbsp;// 通过全局变量访问<br>
+&nbsp;&nbsp;const { createVersionUpdateDetector } = VersionUpdateDetector;<br>
+&nbsp;&nbsp;<br>
+&nbsp;&nbsp;// 创建检测器<br>
+&nbsp;&nbsp;const { detector, notification } = createVersionUpdateDetector({<br>
+&nbsp;&nbsp;&nbsp;&nbsp;skipInDevelopment: false // CDN 使用建议设为 false<br>
+&nbsp;&nbsp;});<br>
+&lt;/script&gt;</code>
+    </div>
+
+    <div class="info-box" style="background: #e8f5e9; border-left-color: #4caf50;">
+      <h3>📚 可用的 API</h3>
+      <ul>
+        <li><span class="highlight">VersionUpdateDetector.createVersionUpdateDetector()</span> - 快速创建</li>
+        <li><span class="highlight">VersionUpdateDetector.VersionDetector</span> - 检测器类</li>
+        <li><span class="highlight">VersionUpdateDetector.UpdateNotification</span> - 通知组件类</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 引入库（本地文件） -->
+  <script src="../dist/index.umd.js"></script>
+  
+  <!-- 使用库 -->
+  <script>
+    // 通过全局变量 VersionUpdateDetector 访问
+    const { createVersionUpdateDetector, VersionDetector, UpdateNotification } = VersionUpdateDetector;
+    
+    // 初始化检测器
+    const { detector, notification } = createVersionUpdateDetector(
+      {
+        skipInDevelopment: false, // CDN 使用时建议设为 false
+        checkInterval: 60 * 1000 // 演示用：1分钟检查一次
+      },
+      {
+        title: '🎉 发现新版本',
+        description: '为了获得更好的体验，请刷新页面更新到最新版本。',
+        buttonText: {
+          refresh: '立即刷新',
+          later: '稍后提醒'
+        }
+      },
+      {
+        onRefresh: () => {
+          console.log('👤 用户点击了刷新');
+          updateStatus('用户点击了刷新，正在重载页面...');
+        },
+        onLater: () => {
+          console.log('⏰ 用户选择稍后提醒');
+          updateStatus('用户选择稍后提醒');
+        }
+      }
+    );
+
+    // 监听更新事件
+    detector.onUpdate((reason) => {
+      console.log('🔔 检测到更新，原因:', reason);
+      updateStatus(`检测到更新！原因: ${reason}`);
+    });
+
+    // 手动检查更新
+    window.manualCheck = async function() {
+      updateStatus('正在检查更新...');
+      const hasUpdate = await detector.checkForUpdate();
+      if (hasUpdate) {
+        updateStatus('✅ 检测到新版本！');
+      } else {
+        updateStatus('✅ 当前已是最新版本');
+      }
+    };
+
+    // 模拟更新通知
+    window.simulateUpdate = function() {
+      notification.show('version-change');
+      updateStatus('已显示更新通知弹窗（模拟）');
+    };
+
+    // 清除本地存储
+    window.clearStorage = function() {
+      localStorage.clear();
+      updateStatus('✅ 已清除缓存，下次检查时会重新记录版本信息');
+    };
+
+    function updateStatus(message) {
+      const el = document.getElementById('status');
+      if (el) {
+        const time = new Date().toLocaleTimeString();
+        el.innerHTML = `<strong>[${time}]</strong> ${message}`;
+      }
+    }
+
+    // 初始化完成
+    console.log('✅ Version Update Detector 已通过 CDN 成功初始化');
+    console.log('🌍 全局变量:', VersionUpdateDetector);
+    updateStatus('✅ 初始化成功！正在监听页面可见性变化和定时检测...');
+
+    // 页面卸载时清理
+    window.addEventListener('beforeunload', () => {
+      detector.destroy();
+      notification.destroy();
+    });
+  </script>
+</body>
+</html>
+

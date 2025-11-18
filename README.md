@@ -4,9 +4,10 @@
 
 ## 特性
 
-- 🔍 **智能版本检测** - 通过检查 package.json 和 index.html 的变化来检测版本更新
+- 🔍 **智能版本检测** - 通过检查 index.html 的 ETag 和 Last-Modified 来检测版本更新
+- 👁️ **页面可见性监听** - 用户切换标签页回来时自动检测更新
 - 🚨 **资源错误监听** - 自动监听资源加载失败，及时提醒用户更新
-- 💡 **纯 JS 实现** - 无依赖，不依赖任何框架
+- 💡 **纯 JS 实现** - 零依赖，不依赖任何框架
 - 🎨 **可定制 UI** - 支持自定义样式和配置
 - 📱 **响应式设计** - 支持移动端和桌面端
 - 🔧 **TypeScript 支持** - 完整的类型定义
@@ -14,13 +15,37 @@
 
 ## 安装
 
+### 方式 1：通过 npm 安装
+
 ```bash
 npm install version-update-detector
 ```
 
+### 方式 2：通过 CDN 使用（无需安装）
+
+```html
+<!-- 通过 unpkg CDN -->
+<script src="https://unpkg.com/version-update-detector@latest/dist/index.umd.js"></script>
+
+<!-- 或通过 jsdelivr CDN -->
+<script src="https://cdn.jsdelivr.net/npm/version-update-detector@latest/dist/index.umd.js"></script>
+```
+
 ## 快速开始
 
+### 检测原理
+
+该库通过检测 `index.html` 文件的 HTTP 头信息（ETag 和 Last-Modified）来判断应用是否有更新。
+
+### 检测时机
+
+1. **页面可见性变化时**：当用户从其他标签页切回来时自动检测
+2. **定时检测**：页面保持打开状态时，默认每 30 分钟检测一次
+3. **资源加载失败时**：检测到 JS/CSS 等资源加载失败时触发检测
+
 ### 基础用法
+
+#### 方式 1：ES Module（推荐）
 
 ```javascript
 import { createVersionUpdateDetector } from 'version-update-detector';
@@ -32,6 +57,68 @@ const { detector, notification, destroy } = createVersionUpdateDetector();
 window.addEventListener('beforeunload', destroy);
 ```
 
+#### 方式 2：通过 Script 标签
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My App</title>
+</head>
+<body>
+  <h1>我的应用</h1>
+
+  <!-- 引入库 -->
+  <script src="https://unpkg.com/version-update-detector@latest/dist/index.umd.js"></script>
+  
+  <!-- 使用库 -->
+  <script>
+    // 通过全局变量 VersionUpdateDetector 访问
+    const { createVersionUpdateDetector } = VersionUpdateDetector;
+    
+    // 创建检测器和通知组件
+    const { detector, notification, destroy } = createVersionUpdateDetector();
+    
+    // 页面卸载时清理
+    window.addEventListener('beforeunload', destroy);
+  </script>
+</body>
+</html>
+```
+
+**完整示例：**
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My App</title>
+</head>
+<body>
+  <h1>我的应用</h1>
+
+  <script src="https://unpkg.com/version-update-detector@latest/dist/index.umd.js"></script>
+  <script>
+    const { createVersionUpdateDetector } = VersionUpdateDetector;
+    
+    // 自定义配置
+    const { detector, notification, destroy } = createVersionUpdateDetector(
+      {
+        checkInterval: 30 * 60 * 1000, // 30分钟检查一次
+        skipInDevelopment: false // 在 CDN 使用时建议设为 false
+      },
+      {
+        title: '🎉 发现新版本',
+        description: '请刷新页面以获得最新功能'
+      }
+    );
+    
+    console.log('版本检测已启动');
+  </script>
+</body>
+</html>
+```
+
 ### 高级用法
 
 ```javascript
@@ -41,7 +128,6 @@ import { VersionDetector, UpdateNotification } from 'version-update-detector';
 const detector = new VersionDetector({
   checkInterval: 30 * 60 * 1000, // 30分钟检查一次
   skipInDevelopment: true, // 开发环境跳过检测
-  versionCheckUrl: '/package.json', // 版本检查URL
   enableResourceErrorDetection: true // 启用资源错误检测
 });
 
@@ -94,7 +180,6 @@ interface VersionDetectorOptions {
   checkInterval?: number; // 检查间隔时间（毫秒），默认30分钟
   skipInDevelopment?: boolean; // 是否在开发环境下跳过检测，默认true
   isDevelopment?: () => boolean; // 自定义开发环境检测函数
-  versionCheckUrl?: string; // 版本检查的URL路径，默认为'/package.json'
   enableResourceErrorDetection?: boolean; // 是否启用资源错误监听，默认true
 }
 ```
@@ -172,6 +257,58 @@ type UpdateReason =
   | 'unknown'; // 未知原因
 ```
 
+## 检测机制说明
+
+### 如何检测版本更新？
+
+库通过检测 `index.html` 文件的 HTTP 响应头来判断应用是否有更新：
+
+- **ETag**：文件内容的唯一标识符
+- **Last-Modified**：文件最后修改时间
+
+当应用重新部署后，这些值会发生变化，从而触发更新提示。
+
+### 何时触发检测？
+
+1. **页面可见性变化**：用户从其他标签页切回来时自动检测
+2. **定时检测**：页面保持打开状态时，默认每 30 分钟检测一次
+3. **资源加载失败**：检测到 JS/CSS 等资源加载失败时触发检测
+
+### 服务器配置建议
+
+为了确保检测功能正常工作，建议禁用 `index.html` 的缓存：
+
+**Nginx 配置：**
+```nginx
+location / {
+    try_files $uri $uri/ /index.html;
+    
+    # 禁用 index.html 缓存
+    location = /index.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+    }
+}
+```
+
+**Vercel (`vercel.json`)：**
+```json
+{
+  "headers": [
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    }
+  ]
+}
+```
+
 ## 使用场景
 
 ### 1. 单页应用 (SPA)
@@ -182,43 +319,39 @@ import { createVersionUpdateDetector } from 'version-update-detector';
 // 在应用初始化时创建
 const { detector, notification, destroy } = createVersionUpdateDetector(
   {
-    // 检测器选项
+    // 检测器选项（可选）
+    checkInterval: 30 * 60 * 1000 // 30分钟检查一次
   },
   {
-    // 通知选项
+    // 通知选项（可选）
     title: '应用已更新',
     description: '请刷新页面以获得最新功能。'
   },
   {
-    // 事件回调
+    // 事件回调（可选）
     onRefresh: () => {
-      // 清除缓存并刷新
+      // 清除 Service Worker 缓存并刷新
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then((registrations) => {
           registrations.forEach((registration) => registration.unregister());
+          window.location.reload();
         });
+      } else {
+        window.location.reload();
       }
-      window.location.reload();
     }
   }
 );
 ```
 
-### 2. 多页应用
+### 2. 自定义检查间隔
 
 ```javascript
-import { VersionDetector } from 'version-update-detector';
+import { createVersionUpdateDetector } from 'version-update-detector';
 
-// 在每个页面中初始化
-const detector = new VersionDetector({
-  checkInterval: 15 * 60 * 1000, // 15分钟检查一次
-  versionCheckUrl: '/api/version' // 自定义版本检查接口
-});
-
-detector.onUpdate((reason) => {
-  if (confirm('检测到新版本，是否立即刷新？')) {
-    window.location.reload();
-  }
+// 自定义检查间隔为 15 分钟
+const { detector } = createVersionUpdateDetector({
+  checkInterval: 15 * 60 * 1000
 });
 ```
 
@@ -276,6 +409,15 @@ MIT License
 欢迎提交 Issue 和 Pull Request！
 
 ## 更新日志
+
+查看 [CHANGELOG.md](./CHANGELOG.md) 了解详细的版本更新历史。
+
+### 1.1.0
+
+- 🔥 简化检测方式：只保留检测 index.html 的方式
+- ⚡ 优化检测时机：页面可见性变化时自动检测
+- ✨ 初始化时立即记录版本信息，避免误判
+- 📝 大幅简化 API，更易使用
 
 ### 1.0.0
 

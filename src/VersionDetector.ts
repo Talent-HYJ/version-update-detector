@@ -9,8 +9,6 @@ export interface VersionDetectorOptions {
   skipInDevelopment?: boolean;
   /** 自定义开发环境检测函数 */
   isDevelopment?: () => boolean;
-  /** 版本检查的URL路径，默认为'/package.json' */
-  versionCheckUrl?: string;
   /** 是否启用资源错误监听，默认true */
   enableResourceErrorDetection?: boolean;
 }
@@ -24,6 +22,13 @@ export interface PackageInfo {
 
 export type UpdateReason = 'version-change' | 'redeploy' | 'resource-error' | 'network-error' | 'unknown';
 
+interface InternalOptions {
+  checkInterval: number;
+  skipInDevelopment: boolean;
+  isDevelopment: () => boolean;
+  enableResourceErrorDetection: boolean;
+}
+
 export class VersionDetector {
   private currentVersion: string;
   private checkInterval: number;
@@ -32,7 +37,7 @@ export class VersionDetector {
   private onUpdateCallbacks: Array<(reason: UpdateReason) => void> = [];
   private onResourceErrorCallbacks: Array<(element?: Element) => void> = [];
   private isLocalDevelopment: boolean;
-  private options: Required<VersionDetectorOptions>;
+  private options: InternalOptions;
 
   constructor(options: VersionDetectorOptions = {}) {
     this.currentVersion = (window as any).version || '1.0.0';
@@ -40,7 +45,6 @@ export class VersionDetector {
       checkInterval: 30 * 60 * 1000, // 30分钟
       skipInDevelopment: true,
       isDevelopment: () => this.detectLocalEnvironment(),
-      versionCheckUrl: '/package.json',
       enableResourceErrorDetection: true,
       ...options
     };
@@ -61,8 +65,54 @@ export class VersionDetector {
     if (this.options.enableResourceErrorDetection) {
       this.listenResourceErrors();
     }
+    
+    // 监听页面可见性变化
+    this.listenVisibilityChange();
+    
+    // 立即记录当前版本信息（避免首次检测时记录错误的版本）
+    this.recordInitialVersion();
+    
     // 开始定期检查版本
     this.startVersionCheck();
+  }
+
+  /**
+   * 记录初始版本信息
+   * 在页面加载时立即记录当前的 ETag，避免首次检测时误判
+   */
+  private async recordInitialVersion(): Promise<void> {
+    // 如果已经有存储的版本信息，说明不是首次访问，无需记录
+    const storedEtag = localStorage.getItem('app_index_etag');
+    const storedLastModified = localStorage.getItem('app_index_last_modified');
+    
+    if (storedEtag || storedLastModified) {
+      console.log('已有版本记录，跳过初始化记录');
+      return;
+    }
+
+    // 首次访问，立即记录当前页面的版本信息
+    try {
+      const response = await fetch(`/index.html?${Date.now()}`, {
+        method: 'HEAD',
+        cache: 'no-cache'
+      });
+
+      if (response.ok) {
+        const etag = response.headers.get('etag');
+        const lastModified = response.headers.get('last-modified');
+
+        if (etag) {
+          localStorage.setItem('app_index_etag', etag);
+          console.log('初始化记录 ETag:', etag);
+        }
+        if (lastModified) {
+          localStorage.setItem('app_index_last_modified', lastModified);
+          console.log('初始化记录 Last-Modified:', lastModified);
+        }
+      }
+    } catch (error) {
+      console.warn('记录初始版本信息失败:', error);
+    }
   }
 
   /**
@@ -80,6 +130,24 @@ export class VersionDetector {
 
     console.log('开发环境检测:', { isLocalhost, isNodeEnvDev, isDev });
     return isDev;
+  }
+
+  /**
+   * 监听页面可见性变化
+   * 当页面从不可见变为可见状态时触发检测
+   */
+  private listenVisibilityChange(): void {
+    if (typeof document === 'undefined' || !document.addEventListener) {
+      return;
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      // 当页面从不可见变为可见时，触发版本检测
+      if (!document.hidden) {
+        console.log('页面变为可见，检查版本更新');
+        this.checkForUpdate();
+      }
+    });
   }
 
   /**
@@ -159,8 +227,9 @@ export class VersionDetector {
       clearInterval(this.timer);
     }
 
-    // 立即检查一次
-    setTimeout(() => this.checkForUpdate(), 5000);
+    // 初始化时已经记录了版本信息，所以第一次检测可以稍微延后
+    // 避免在页面刚加载时频繁请求
+    setTimeout(() => this.checkForUpdate(), 10000); // 10秒后首次检测
 
     // 定期检查
     this.timer = setInterval(() => {
@@ -180,6 +249,7 @@ export class VersionDetector {
 
   /**
    * 检查是否有新版本
+   * 通过检查 index.html 的 ETag 和 Last-Modified 来判断
    */
   public async checkForUpdate(): Promise<boolean> {
     // 如果是本地开发环境，直接返回false
@@ -194,13 +264,7 @@ export class VersionDetector {
     this.isChecking = true;
 
     try {
-      // 方法1: 检查package.json的版本号和修改时间（主要方式）
-      const hasPackageUpdate = await this.checkVersionByPackage();
-      if (hasPackageUpdate) {
-        return true;
-      }
-
-      // 方法2: 检查index.html的变化（备选方式）
+      // 检查 index.html 的变化
       const hasIndexUpdate = await this.checkVersionByIndex();
       if (hasIndexUpdate) {
         return true;
@@ -224,70 +288,8 @@ export class VersionDetector {
   }
 
   /**
-   * 通过检查package.json来判断更新（主要方式）
-   */
-  private async checkVersionByPackage(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.options.versionCheckUrl}?${Date.now()}`, {
-        cache: 'no-cache'
-      });
-
-      if (response.ok) {
-        const packageInfo = await response.json();
-        const remoteVersion = packageInfo.version;
-
-        // 获取HTTP缓存头信息
-        const etag = response.headers.get('etag');
-        const lastModified = response.headers.get('last-modified');
-
-        // 获取本地存储的信息
-        const storedPackageInfo = localStorage.getItem('app_package_info');
-
-        // 首次访问，存储信息
-        if (!storedPackageInfo) {
-          const packageData: PackageInfo = {
-            version: remoteVersion,
-            etag: etag || undefined,
-            lastModified: lastModified || undefined,
-            checkTime: Date.now()
-          };
-          localStorage.setItem('app_package_info', JSON.stringify(packageData));
-          return false;
-        }
-
-        const localPackageInfo: PackageInfo = JSON.parse(storedPackageInfo);
-
-        // 检查各种变化情况
-        const hasVersionChange = remoteVersion && remoteVersion !== localPackageInfo.version;
-        const hasEtagChange = etag && etag !== localPackageInfo.etag;
-        const hasLastModifiedChange = lastModified && lastModified !== localPackageInfo.lastModified;
-
-        // 如果有任何变化，说明应用已更新或重新部署
-        if (hasVersionChange || hasEtagChange || hasLastModifiedChange) {
-          // 更新本地存储
-          const updatedPackageData: PackageInfo = {
-            version: remoteVersion,
-            etag: etag || undefined,
-            lastModified: lastModified || undefined,
-            checkTime: Date.now()
-          };
-          localStorage.setItem('app_package_info', JSON.stringify(updatedPackageData));
-
-          // 根据变化类型确定提示原因
-          const reason: UpdateReason = hasVersionChange ? 'version-change' : 'redeploy';
-          this.notifyUpdate(reason);
-          return true;
-        }
-      }
-    } catch (error) {
-      console.warn('无法获取package.json:', error);
-    }
-
-    return false;
-  }
-
-  /**
-   * 通过检查index.html来判断更新（备选方式）
+   * 通过检查 index.html 来判断更新
+   * 使用 ETag 和 Last-Modified 来判断是否有更新
    */
   private async checkVersionByIndex(): Promise<boolean> {
     try {
@@ -304,8 +306,10 @@ export class VersionDetector {
         const storedEtag = localStorage.getItem('app_index_etag');
         const storedLastModified = localStorage.getItem('app_index_last_modified');
 
-        // 首次访问，存储当前值
+        // 如果没有存储的版本信息（理论上不应该发生，因为初始化时已记录）
+        // 这里作为保护措施，避免误报更新
         if (!storedEtag && !storedLastModified) {
+          console.warn('未找到存储的版本信息，记录当前版本');
           if (etag) localStorage.setItem('app_index_etag', etag);
           if (lastModified) localStorage.setItem('app_index_last_modified', lastModified);
           return false;
@@ -315,6 +319,13 @@ export class VersionDetector {
         const hasUpdate = (etag && etag !== storedEtag) || (lastModified && lastModified !== storedLastModified);
 
         if (hasUpdate) {
+          console.log('检测到版本更新:', {
+            oldEtag: storedEtag,
+            newEtag: etag,
+            oldLastModified: storedLastModified,
+            newLastModified: lastModified
+          });
+
           // 更新存储的值
           if (etag) localStorage.setItem('app_index_etag', etag);
           if (lastModified) localStorage.setItem('app_index_last_modified', lastModified);

@@ -1,181 +1,198 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Version Update Detector 示例</title>
-    <style>
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        margin: 0;
-        padding: 20px;
-        background-color: #f5f5f5;
-      }
-      .container {
-        max-width: 800px;
-        margin: 0 auto;
-        background: white;
-        padding: 30px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-      }
-      h1 {
-        color: #333;
-        text-align: center;
-      }
-      .demo-section {
-        margin: 20px 0;
-        padding: 20px;
-        border: 1px solid #e0e0e0;
-        border-radius: 4px;
-      }
-      button {
-        background: #409eff;
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 4px;
-        cursor: pointer;
-        margin: 5px;
-      }
-      button:hover {
-        background: #66b1ff;
-      }
-      .status {
-        margin: 10px 0;
-        padding: 10px;
-        background: #f0f9ff;
-        border: 1px solid #b3d8ff;
-        border-radius: 4px;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <h1>Version Update Detector 示例</h1>
-
-      <div class="demo-section">
-        <h3>基础用法</h3>
-        <p>这个示例展示了如何使用版本更新检测器。</p>
-        <button onclick="initDetector()">初始化检测器</button>
-        <button onclick="checkUpdate()">手动检查更新</button>
-        <button onclick="simulateUpdate()">模拟版本更新</button>
-        <div id="status" class="status">状态：未初始化</div>
-      </div>
-
-      <div class="demo-section">
-        <h3>功能说明</h3>
-        <ul>
-          <li>自动检测应用版本更新</li>
-          <li>监听资源加载失败</li>
-          <li>显示更新通知弹窗</li>
-          <li>支持自定义配置</li>
-        </ul>
-      </div>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Version Update Detector - 简单示例</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 { color: #333; margin-top: 0; }
+    .info {
+      background: #e7f3ff;
+      border-left: 4px solid #409eff;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .info h3 { margin-top: 0; color: #409eff; }
+    .btn {
+      background: #409eff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 5px;
+    }
+    .btn:hover { background: #66b1ff; }
+    .btn-outline {
+      background: white;
+      color: #409eff;
+      border: 1px solid #409eff;
+    }
+    .btn-outline:hover {
+      background: #ecf5ff;
+    }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+    }
+    .status {
+      padding: 10px;
+      margin: 15px 0;
+      background: #f9f9f9;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    ul {
+      line-height: 1.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>📦 Version Update Detector</h1>
+    
+    <div class="info">
+      <h3>🔍 检测机制</h3>
+      <ul>
+        <li><strong>检测方式</strong>：通过 <code>index.html</code> 的 ETag 和 Last-Modified 判断版本更新</li>
+        <li><strong>触发时机 1</strong>：页面从不可见变为可见时（切换标签页回来）</li>
+        <li><strong>触发时机 2</strong>：页面保持打开时，每 30 分钟自动检测</li>
+        <li><strong>触发时机 3</strong>：检测到 JS/CSS 等资源加载失败时</li>
+      </ul>
     </div>
 
-    <script type="module">
-      import { createVersionUpdateDetector, VersionDetector, UpdateNotification } from '../dist/index.esm.js';
+    <div class="info" style="background: #fff3e0; border-left-color: #ff9800;">
+      <h3>💡 测试方法</h3>
+      <ol>
+        <li>打开浏览器开发者工具 → Network 标签</li>
+        <li>观察对 <code>/index.html</code> 的 HEAD 请求</li>
+        <li>切换到其他标签页，再切回来，会触发检测</li>
+        <li>点击"模拟更新"按钮，查看更新提示弹窗</li>
+      </ol>
+    </div>
 
-      let detector = null;
-      let notification = null;
+    <div style="margin: 30px 0;">
+      <button class="btn" onclick="manualCheck()">手动检查更新</button>
+      <button class="btn btn-outline" onclick="simulateUpdate()">模拟更新通知</button>
+      <button class="btn btn-outline" onclick="clearStorage()">清除缓存</button>
+    </div>
 
-      window.initDetector = function () {
-        try {
-          // 创建检测器和通知组件
-          const result = createVersionUpdateDetector(
-            {
-              // 检测器选项
-              checkInterval: 10 * 1000, // 10秒检查一次（演示用）
-              skipInDevelopment: false, // 演示时不跳过开发环境
-              versionCheckUrl: '/package.json',
-              enableResourceErrorDetection: true
-            },
-            {
-              // 通知选项
-              title: '应用更新提醒',
-              description: '请刷新页面以获得最新内容。',
-              forceUpdate: false,
-              width: '480px',
-              buttonText: {
-                later: '稍后提醒',
-                refresh: '立即刷新',
-                refreshing: '正在刷新...'
-              },
-              laterInterval: 5 * 60 * 1000 // 5分钟
-            },
-            {
-              // 事件回调
-              onRefresh: () => {
-                console.log('用户点击了刷新');
-                updateStatus('用户点击了刷新');
-              },
-              onLater: () => {
-                console.log('用户点击了稍后提醒');
-                updateStatus('用户点击了稍后提醒');
-              },
-              onClose: () => {
-                console.log('弹窗关闭');
-                updateStatus('弹窗关闭');
-              }
-            }
-          );
+    <div id="status" class="status">
+      状态：已初始化，等待检测...
+    </div>
 
-          detector = result.detector;
-          notification = result.notification;
+    <div class="info" style="background: #f3f4f6; border-left-color: #6b7280;">
+      <h3>📝 使用代码</h3>
+      <pre style="overflow-x: auto; background: #282c34; color: #abb2bf; padding: 15px; border-radius: 4px;"><code>import { createVersionUpdateDetector } from 'version-update-detector';
 
-          updateStatus('检测器已初始化');
-          console.log('版本检测器初始化成功');
-        } catch (error) {
-          console.error('初始化失败:', error);
-          updateStatus('初始化失败: ' + error.message);
+// 一行代码完成集成
+const { detector, notification } = createVersionUpdateDetector();
+
+// 自定义配置（可选）
+const { detector, notification } = createVersionUpdateDetector(
+  {
+    checkInterval: 30 * 60 * 1000, // 30分钟检查一次
+    skipInDevelopment: true // 开发环境跳过检测
+  },
+  {
+    title: '发现新版本',
+    description: '请刷新页面以获得最新功能'
+  }
+);</code></pre>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createVersionUpdateDetector } from '../dist/index.esm.js';
+
+    // 初始化版本检测器
+    const { detector, notification } = createVersionUpdateDetector(
+      {
+        skipInDevelopment: false, // 演示时不跳过开发环境
+        checkInterval: 60 * 1000 // 演示用：1分钟检查一次
+      },
+      {
+        title: '🎉 发现新版本',
+        description: '为了获得更好的体验，请刷新页面更新到最新版本。',
+        buttonText: {
+          refresh: '立即刷新',
+          later: '稍后提醒'
         }
-      };
-
-      window.checkUpdate = async function () {
-        if (!detector) {
-          updateStatus('请先初始化检测器');
-          return;
-        }
-
-        try {
-          updateStatus('正在检查更新...');
-          const hasUpdate = await detector.checkForUpdate();
-          if (hasUpdate) {
-            updateStatus('检测到新版本');
-          } else {
-            updateStatus('当前已是最新版本');
-          }
-        } catch (error) {
-          console.error('检查更新失败:', error);
-          updateStatus('检查更新失败: ' + error.message);
-        }
-      };
-
-      window.simulateUpdate = function () {
-        if (!notification) {
-          updateStatus('请先初始化检测器');
-          return;
-        }
-
-        // 模拟显示更新通知
-        notification.show('version-change');
-        updateStatus('已显示更新通知');
-      };
-
-      function updateStatus(message) {
-        const statusEl = document.getElementById('status');
-        if (statusEl) {
-          statusEl.textContent = '状态：' + message;
+      },
+      {
+        onRefresh: () => {
+          console.log('用户点击了刷新');
+          updateStatus('正在刷新页面...');
+        },
+        onLater: () => {
+          console.log('用户选择稍后提醒');
+          updateStatus('用户选择稍后提醒，将在 10 分钟后再次提醒');
         }
       }
+    );
 
-      // 页面卸载时清理
-      window.addEventListener('beforeunload', () => {
-        if (detector) {
-          detector.destroy();
-        }
-      });
-    </script>
-  </body>
+    // 监听更新事件
+    detector.onUpdate((reason) => {
+      console.log('检测到更新，原因:', reason);
+      updateStatus(`检测到更新！原因: ${reason}`);
+    });
+
+    // 手动检查更新
+    window.manualCheck = async function() {
+      updateStatus('正在检查更新...');
+      const hasUpdate = await detector.checkForUpdate();
+      if (hasUpdate) {
+        updateStatus('检测到新版本！');
+      } else {
+        updateStatus('当前已是最新版本');
+      }
+    };
+
+    // 模拟更新通知
+    window.simulateUpdate = function() {
+      notification.show('version-change');
+      updateStatus('已显示更新通知弹窗');
+    };
+
+    // 清除本地存储
+    window.clearStorage = function() {
+      localStorage.clear();
+      updateStatus('已清除缓存，下次检查时会重新记录版本信息');
+    };
+
+    function updateStatus(message) {
+      const el = document.getElementById('status');
+      if (el) {
+        const time = new Date().toLocaleTimeString();
+        el.textContent = `[${time}] ${message}`;
+      }
+    }
+
+    // 页面卸载时清理
+    window.addEventListener('beforeunload', () => {
+      detector.destroy();
+      notification.destroy();
+    });
+
+    updateStatus('已初始化，正在监听页面可见性变化...');
+  </script>
+</body>
 </html>
+
