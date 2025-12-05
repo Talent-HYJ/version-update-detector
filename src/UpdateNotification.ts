@@ -424,7 +424,7 @@ export class UpdateNotification {
       if (this.refreshing) {
         window.location.reload();
       }
-    }, 5000);
+    }, 500);
   }
 
   /**

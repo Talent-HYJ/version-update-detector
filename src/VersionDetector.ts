@@ -5,6 +5,8 @@
 export interface VersionDetectorOptions {
   /** 检查间隔时间（毫秒），默认30分钟 */
   checkInterval?: number;
+  /** 页面可见性变化时的检测间隔（毫秒），默认5分钟 */
+  visibilityCheckInterval?: number;
   /** 是否在开发环境下跳过检测，默认true */
   skipInDevelopment?: boolean;
   /** 自定义开发环境检测函数 */
@@ -24,6 +26,7 @@ export type UpdateReason = 'version-change' | 'redeploy' | 'resource-error' | 'n
 
 interface InternalOptions {
   checkInterval: number;
+  visibilityCheckInterval: number;
   skipInDevelopment: boolean;
   isDevelopment: () => boolean;
   enableResourceErrorDetection: boolean;
@@ -38,11 +41,13 @@ export class VersionDetector {
   private onResourceErrorCallbacks: Array<(element?: Element) => void> = [];
   private isLocalDevelopment: boolean;
   private options: InternalOptions;
+  private lastVisibilityCheckTime: number = 0;
 
   constructor(options: VersionDetectorOptions = {}) {
     this.currentVersion = (window as any).version || '1.0.0';
     this.options = {
       checkInterval: 30 * 60 * 1000, // 30分钟
+      visibilityCheckInterval: 5 * 60 * 1000, // 5分钟
       skipInDevelopment: true,
       isDevelopment: () => this.detectLocalEnvironment(),
       enableResourceErrorDetection: true,
@@ -135,6 +140,7 @@ export class VersionDetector {
   /**
    * 监听页面可见性变化
    * 当页面从不可见变为可见状态时触发检测
+   * 页面不可见时停止定时检测，可见时重新启动
    */
   private listenVisibilityChange(): void {
     if (typeof document === 'undefined' || !document.addEventListener) {
@@ -142,10 +148,29 @@ export class VersionDetector {
     }
 
     document.addEventListener('visibilitychange', () => {
-      // 当页面从不可见变为可见时，触发版本检测
-      if (!document.hidden) {
-        console.log('页面变为可见，检查版本更新');
-        this.checkForUpdate();
+      if (document.hidden) {
+        // 页面不可见时，停止定时检测
+        console.log('页面变为不可见，停止定时版本检测');
+        this.stopVersionCheck();
+      } else {
+        // 页面可见时，重新启动定时检测
+        console.log('页面变为可见，重新启动定时版本检测');
+        
+        // 检查距离上次检测是否超过配置的间隔时间
+        const now = Date.now();
+        const timeSinceLastCheck = now - this.lastVisibilityCheckTime;
+        
+        if (timeSinceLastCheck >= this.options.visibilityCheckInterval) {
+          console.log('距离上次检测已超过间隔时间，立即检查版本更新');
+          this.lastVisibilityCheckTime = now;
+          // 立即检测，并跳过首次延迟
+          this.startVersionCheck(true);
+          this.checkForUpdate();
+        } else {
+          console.log(`距离上次检测仅 ${Math.round(timeSinceLastCheck / 1000)} 秒，跳过本次检测`);
+          // 不立即检测，正常启动定时检测（包含首次延迟）
+          this.startVersionCheck(false);
+        }
       }
     });
   }
@@ -215,8 +240,9 @@ export class VersionDetector {
 
   /**
    * 开始定期检查版本
+   * @param skipInitialDelay 是否跳过首次延迟检测（用于可见性变化时）
    */
-  private startVersionCheck(): void {
+  private startVersionCheck(skipInitialDelay: boolean = false): void {
     // 如果是本地开发环境，不启动版本检查
     if (this.isLocalDevelopment && this.options.skipInDevelopment) {
       console.log('本地开发环境，跳过版本检查启动');
@@ -229,7 +255,10 @@ export class VersionDetector {
 
     // 初始化时已经记录了版本信息，所以第一次检测可以稍微延后
     // 避免在页面刚加载时频繁请求
-    setTimeout(() => this.checkForUpdate(), 10000); // 10秒后首次检测
+    // 但如果是从不可见变为可见，且已经立即检测过，则跳过首次延迟
+    if (!skipInitialDelay) {
+      setTimeout(() => this.checkForUpdate(), 10000); // 10秒后首次检测
+    }
 
     // 定期检查
     this.timer = setInterval(() => {

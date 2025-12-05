@@ -1,6 +1,6 @@
 {
   "name": "version-update-detector",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A lightweight JavaScript library for detecting application version updates and showing update notifications",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
