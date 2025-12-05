@@ -42,6 +42,7 @@ export class VersionDetector {
   private isLocalDevelopment: boolean;
   private options: InternalOptions;
   private lastVisibilityCheckTime: number = 0;
+  private isVisibilityChecking: boolean = false; // 防止可见性检测重复触发
 
   constructor(options: VersionDetectorOptions = {}) {
     this.currentVersion = (window as any).version || '1.0.0';
@@ -65,6 +66,11 @@ export class VersionDetector {
       console.log('检测到本地开发环境，跳过版本检测');
       return;
     }
+
+    // 初始化可见性检测时间戳
+    // 设置为当前时间减去间隔时间，这样首次从不可见变为可见时不会立即检测
+    // 除非真的已经过了足够的时间
+    this.lastVisibilityCheckTime = Date.now() - this.options.visibilityCheckInterval;
 
     // 监听资源加载失败事件
     if (this.options.enableResourceErrorDetection) {
@@ -156,20 +162,34 @@ export class VersionDetector {
         // 页面可见时，重新启动定时检测
         console.log('页面变为可见，重新启动定时版本检测');
         
-        // 检查距离上次检测是否超过配置的间隔时间
+        // 如果正在检测中，直接返回，避免重复触发
+        if (this.isVisibilityChecking) {
+          console.log('可见性检测正在进行中，跳过本次触发');
+          this.startVersionCheck(true); // 只启动定时检测，不触发立即检测
+          return;
+        }
+        
+        // 检查距离上次可见性检测是否超过配置的间隔时间
         const now = Date.now();
         const timeSinceLastCheck = now - this.lastVisibilityCheckTime;
         
         if (timeSinceLastCheck >= this.options.visibilityCheckInterval) {
-          console.log('距离上次检测已超过间隔时间，立即检查版本更新');
+          console.log(`距离上次可见性检测已超过间隔时间（${Math.round(timeSinceLastCheck / 1000)} 秒），立即检查版本更新`);
+          // 在检测开始前就更新时间戳，避免频繁切换时重复检测
           this.lastVisibilityCheckTime = now;
+          this.isVisibilityChecking = true; // 标记正在检测
           // 立即检测，并跳过首次延迟
           this.startVersionCheck(true);
-          this.checkForUpdate();
+          // 调用检测方法，检测完成后重置标志
+          this.checkForUpdate().finally(() => {
+            this.isVisibilityChecking = false;
+          });
         } else {
-          console.log(`距离上次检测仅 ${Math.round(timeSinceLastCheck / 1000)} 秒，跳过本次检测`);
-          // 不立即检测，正常启动定时检测（包含首次延迟）
-          this.startVersionCheck(false);
+          const remainingTime = Math.round((this.options.visibilityCheckInterval - timeSinceLastCheck) / 1000);
+          console.log(`距离上次可见性检测仅 ${Math.round(timeSinceLastCheck / 1000)} 秒，还需等待 ${remainingTime} 秒，跳过本次检测`);
+          // 时间间隔不够，只启动定时检测，但不触发立即检测和10秒后的首次检测
+          // 注意：不更新时间戳，保持上次检测的时间
+          this.startVersionCheck(true); // 传入 true 跳过首次延迟检测，避免10秒后触发检测
         }
       }
     });
